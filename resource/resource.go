@@ -1,20 +1,35 @@
 package resource
 
 import (
-	"fmt"
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
+	internalutil "github.com/WeBankBlockchain/WeCross-Go-SDK/internal/util"
 	internalwecrosslog "github.com/WeBankBlockchain/WeCross-Go-SDK/internal/wecrosslog"
-	"github.com/WeBankBlockchain/WeCross-Go-SDK/wecrosslog"
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc"
 )
 
-var logger = wecrosslog.Component("resource")
-
-type resourceB struct{}
-
-func (resourceB) Build() {
-	rB := &resource{}
-	rB.logger = internalwecrosslog.NewPrefixLogger(logger, fmt.Sprintf("[resource-resource %p]", rB))
+type Resource struct {
+	weCrossRPC rpc.WeCrossRPC
+	path       string
+	logger     *internalwecrosslog.PrefixLogger
 }
 
-type resource struct {
-	logger *internalwecrosslog.PrefixLogger
+func (r *Resource) Check() error {
+	if err := r.checkWeCrossRPC(); err != nil {
+		return err
+	}
+	if err := r.checkIPath(); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (r *Resource) checkWeCrossRPC() error {
+	if r.weCrossRPC == nil {
+		return errors.New("WeCrossRPC not set", errors.ResourceError)
+	}
+	return nil
+}
+
+func (r *Resource) checkIPath() error {
+	return internalutil.CheckPath(r.path)
 }
