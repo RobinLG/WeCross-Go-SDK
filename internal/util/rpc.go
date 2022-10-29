@@ -2,11 +2,12 @@ package util
 
 import (
 	"fmt"
-	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
-	config "github.com/WeBankBlockchain/WeCross-Go-SDK/internal/config"
 	"net/url"
 	"regexp"
 	"strings"
+
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
+	config "github.com/WeBankBlockchain/WeCross-Go-SDK/internal/config"
 )
 
 func CheckPath(path string) error {
