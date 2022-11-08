@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/methods"
+
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
 	config "github.com/WeBankBlockchain/WeCross-Go-SDK/internal/config"
 )
@@ -20,4 +22,14 @@ func CheckPath(path string) error {
 		return errors.New(fmt.Sprintf("Invalid iPath: %s", path), errors.IllegalSymbol)
 	}
 	return nil
+}
+
+func RecoverError(callback *methods.Callback) {
+	switch err := recover().(type) {
+	case errors.Error:
+		callback.CallOnFailed(&errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("SDKError happened in AsyncSend, errorMessage: %s", err.Detail)})
+	case error:
+		callback.CallOnFailed(&errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("LibError happened in AsyncSend, errorMessage: %s", err.Error())})
+	default:
+	}
 }

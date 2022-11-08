@@ -13,34 +13,35 @@ const (
 
 func newCallback() *Callback {
 	c := &Callback{
-		timeout:  CALLBACK_TIMEOUT,
-		isFinish: atomic.Value{},
+		Timeout:  CALLBACK_TIMEOUT,
+		IsFinish: atomic.Value{},
 	}
-	c.isFinish.Store(false)
+	c.IsFinish.Store(false)
 
-	c.timeoutWorker = func() {
-		timer := time.NewTimer(CALLBACK_TIMEOUT * time.Millisecond)
-		<-timer.C
-		if c.isFinish.Swap(true) == false { // timeout
-			c.err = errors.Error{
-				Code:   errors.RemoteCallError,
-				Detail: "Timeout",
+	c.Timer = time.AfterFunc(CALLBACK_TIMEOUT*time.Millisecond,
+		func() {
+			if c.IsFinish.Swap(true) == false { // timeout
+				c.CallOnFailed(&errors.Error{
+					Code:   errors.RemoteCallError,
+					Detail: "Timeout",
+				})
 			}
-		}
-	}
+		})
 
 	return c
 }
 
 type Callback struct {
-	timeout       int
-	timeoutWorker func()
-	isFinish      atomic.Value
-	err           errors.Error
-	callbackWorker
+	Timeout   int
+	Timer     *time.Timer
+	IsFinish  atomic.Value
+	OnFailed  func(*errors.Error)
+	OnSuccess func(Response)
 }
 
-type callbackWorker interface {
-	OnSuccess(func(Response))
-	OnFailed(func(errors.Error))
+func (c *Callback) CallOnFailed(error *errors.Error) {
+	if c.IsFinish.Swap(true) == false {
+		c.Timer.Stop()
+		c.OnFailed(error)
+	}
 }

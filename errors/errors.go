@@ -3,6 +3,8 @@ package errors
 import "encoding/json"
 
 const (
+	Success int32 = 0
+
 	InternalError int32 = 100
 
 	// config

@@ -18,14 +18,12 @@ func TestAsyncSend(t *testing.T) {
 	weCrossRPC.Test().AsyncSend(
 		func() *methods.Callback {
 			bc := methods.CallbackFactory{}.Build()
-			bc.OnSuccess(
-				func(response methods.Response) {
-					println(response.GetVersion())
-				})
-			bc.OnFailed(
-				func(e errors.Error) {
-					println(e.Detail)
-				})
+			bc.OnSuccess = func(response methods.Response) {
+				println(response.GetVersion())
+			}
+			bc.OnFailed = func(e *errors.Error) {
+				println(e.Detail)
+			}
 			return bc
 		}(),
 	)
