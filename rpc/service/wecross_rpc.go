@@ -3,9 +3,10 @@ package service
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
-	"strings"
+	"time"
+
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/config"
 
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/util"
@@ -15,28 +16,31 @@ import (
 
 var logger = wecrosslog.Component("wecross_rpc")
 
+const httpClientTimeout = 100000 // ms
+
 type WeCrossRPCService struct {
 	server     string
-	httpClient http.Client
-	urlPrefix  string
+	httpClient *http.Client
 }
 
 func (w *WeCrossRPCService) InitService() error {
+	w.httpClient = &http.Client{Timeout: httpClientTimeout * time.Millisecond}
+	connection, err := w.getConnection(config.APPLICATION_CONFIG_FILE)
+	if err != nil {
+		return err
+	}
+	logger.Infof("connection: %v", connection)
+	w.server = connection.Server
 	return nil
 }
 
-func (w *WeCrossRPCService) Send(httpMethod string, uri string, request *methods.Request, responseType methods.Response) (methods.Response, error) {
+func (w *WeCrossRPCService) Send(request *methods.Request, responseType methods.Response) (methods.Response, error) {
 	return nil, nil
 }
 
-func (w *WeCrossRPCService) AsyncSend(httpMethod string, uri string, request *methods.Request, responseType methods.Response, callback *methods.Callback) {
+func (w *WeCrossRPCService) AsyncSend(request *methods.Request, responseType methods.Response, callback *methods.Callback) {
 	defer util.RecoverError(callback)
-	url := ""
-	if w.urlPrefix != "" {
-		url = fmt.Sprintf("%s%s%s", w.server, w.urlPrefix, uri)
-	} else {
-		url = fmt.Sprintf("%s%s", w.server, uri)
-	}
+	url := util.PathToUrl(w.server, request.Path) + "/" + request.Method
 
 	checkErr := w.checkRequest(request)
 	if checkErr.Code != errors.Success {
@@ -44,19 +48,19 @@ func (w *WeCrossRPCService) AsyncSend(httpMethod string, uri string, request *me
 	}
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
-		logger.Error("AsyncSend Marshal", httpMethod, url, request, err)
+		logger.Error("AsyncSend Marshal", url, request, err)
 		panic(err)
 	}
-	wantReq, err := http.NewRequest(strings.ToUpper(httpMethod), url, bytes.NewBuffer(jsonBody))
+	wantReq, err := http.NewRequest("POST", url, bytes.NewBuffer(jsonBody))
 	if err != nil {
-		logger.Error("AsyncSend NewRequest", httpMethod, url, jsonBody, err)
+		logger.Error("AsyncSend NewRequest", url, jsonBody, err)
 		panic(err)
 	}
 	wantReq.Header.Set("Accept", "application/json")
 	wantReq.Header.Set("Content-Type", "application/json")
 
 	go func() {
-		// TODO: HTTP Request
+
 	}()
 }
 
@@ -66,4 +70,12 @@ func (w *WeCrossRPCService) checkRequest(request *methods.Request) *errors.Error
 	} else {
 		return &errors.Error{Code: errors.Success}
 	}
+}
+
+func (w *WeCrossRPCService) getConnection(config string) (*Connection, *errors.Error) {
+	connection, err := util.GetConnection(config)
+	if err != nil {
+		return nil, err
+	}
+	return connection, nil
 }

@@ -6,16 +6,14 @@ import (
 
 type RemoteCall struct {
 	WeCrossService WeCrossService
-	HttpMethod     string
-	Uri            string
 	Response       methods.Response
 	Request        *methods.Request
 }
 
 func (r *RemoteCall) Send() (methods.Response, error) {
-	return r.WeCrossService.Send(r.HttpMethod, r.Uri, r.Request, r.Response)
+	return r.WeCrossService.Send(r.Request, r.Response)
 }
 
 func (r *RemoteCall) AsyncSend(callback *methods.Callback) {
-	r.WeCrossService.AsyncSend(r.HttpMethod, r.Uri, r.Request, r.Response, callback)
+	r.WeCrossService.AsyncSend(r.Request, r.Response, callback)
 }

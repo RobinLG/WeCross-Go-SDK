@@ -33,3 +33,10 @@ func RecoverError(callback *methods.Callback) {
 	default:
 	}
 }
+
+func PathToUrl(prefix string, path string) string {
+	if len(path) == 0 {
+		return "https://" + prefix
+	}
+	return "https://" + prefix + "/" + strings.ReplaceAll(path, ".", "/")
+}
