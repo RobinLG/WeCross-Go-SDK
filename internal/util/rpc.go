@@ -34,9 +34,28 @@ func RecoverError(callback *methods.Callback) {
 	}
 }
 
-func PathToUrl(prefix string, path string) string {
-	if len(path) == 0 {
-		return "https://" + prefix
+func FormatUrlPrefix(urlPrefix string) (string, *errors.Error) {
+	pattern := "^/(?!_)(?!-)(?!.*?_$)(?!.*?-$)[\\w-]{1,18}$"
+	prefix := urlPrefix
+	if len(prefix) == 0 {
+		return "", nil
 	}
-	return "https://" + prefix + "/" + strings.ReplaceAll(path, ".", "/")
+	// /something/ => /something
+	if strings.HasSuffix(prefix, "/") {
+		prefix = strings.TrimSuffix(prefix, "/")
+	}
+	// something => /something
+	if !strings.HasPrefix(prefix, "/") {
+		prefix = "/" + prefix
+	}
+	// /something
+	matched, err := regexp.MatchString(pattern, prefix)
+	if err != nil {
+		return "", &errors.Error{Code: errors.FieldMissing, Detail: fmt.Sprintf("MatchString lib error: %s", err.Error())}
+	}
+	if matched {
+		return prefix, nil
+	} else {
+		return "", &errors.Error{Code: errors.FieldMissing, Detail: fmt.Sprintf("Error 'urlPrefix' in config, it should matches pattern:  %s", pattern)}
+	}
 }

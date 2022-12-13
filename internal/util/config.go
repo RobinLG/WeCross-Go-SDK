@@ -2,22 +2,15 @@ package util
 
 import (
 	"fmt"
-	"io/ioutil"
 
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
-	rpc "github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/service"
 	"github.com/pelletier/go-toml"
 )
 
-func GetConnection(fileName string) (*rpc.Connection, *errors.Error) {
-	file, err := ioutil.ReadFile(fileName)
+func GetToml(fileName string) (*toml.Tree, *errors.Error) {
+	file, err := toml.LoadFile(fileName)
 	if err != nil {
-		return nil, &errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("io read wrong with parsing %s : ", err.Error())}
+		return nil, &errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("Something wrong with parsing %s : ", err.Error())}
 	}
-	connection := &rpc.Connection{}
-	err = toml.Unmarshal(file, connection)
-	if err != nil {
-		return nil, &errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("toml unmarshle wrong with parsing %s : ", err.Error())}
-	}
-	return connection, nil
+	return file, nil
 }
