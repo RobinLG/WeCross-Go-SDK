@@ -2,12 +2,16 @@ package service
 
 import (
 	"bytes"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"time"
 
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/config"
-	"github.com/pelletier/go-toml"
+	toml "github.com/pelletier/go-toml"
 
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/util"
@@ -17,7 +21,7 @@ import (
 
 var logger = wecrosslog.Component("wecross_rpc")
 
-const httpClientTimeout = 100000 // ms
+const httpClientTimeout = 10 * time.Second
 
 type WeCrossRPCService struct {
 	server     string
@@ -107,8 +111,8 @@ func (w *WeCrossRPCService) getConnection(config string) (*Connection, *errors.E
 	return connection, nil
 }
 
-func (w *WeCrossRPCService) getServer(toml *toml.Tree) (string, *errors.Error) {
-	server := fmt.Sprintf("%s", toml.Get("connection.server"))
+func (w *WeCrossRPCService) getServer(tree *toml.Tree) (string, *errors.Error) {
+	server := fmt.Sprintf("%s", tree.Get("connection.server"))
 	if len(server) == 0 {
 		return "", &errors.Error{Code: errors.FieldMissing, Detail: "Something wrong with parsing [connection.server], please check configuration"}
 	}
@@ -116,5 +120,36 @@ func (w *WeCrossRPCService) getServer(toml *toml.Tree) (string, *errors.Error) {
 }
 
 func (w *WeCrossRPCService) getHttpAsyncClient(connection *Connection) (*http.Client, *errors.Error) {
-	return nil, nil
+	transport := &http.Transport{
+		TLSHandshakeTimeout:   httpClientTimeout,
+		DisableKeepAlives:     false,
+		IdleConnTimeout:       httpClientTimeout,
+		ResponseHeaderTimeout: httpClientTimeout,
+		ExpectContinueTimeout: httpClientTimeout,
+	}
+	if connection.SslSwitch != config.SSL_OFF {
+		caCert, err := ioutil.ReadFile(connection.CaCert)
+		if err != nil {
+			logger.Error("Init http client error: ", err)
+			return nil, &errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("Init http client error: %s", err.Error())}
+		}
+		caCertPool := x509.NewCertPool()
+		caCertPool.AppendCertsFromPEM(caCert)
+		cert, err := tls.LoadX509KeyPair(connection.SslCert, connection.SslKey)
+		if err != nil {
+			logger.Error("Init http client error: ", err)
+			return nil, &errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("Init http client error: %s", err.Error())}
+		}
+		transport.TLSClientConfig = &tls.Config{
+			Certificates: []tls.Certificate{cert},
+			RootCAs:      caCertPool,
+		}
+	}
+
+	clint := &http.Client{
+		Transport: transport,
+		Timeout:   httpClientTimeout,
+	}
+
+	return clint, nil
 }
