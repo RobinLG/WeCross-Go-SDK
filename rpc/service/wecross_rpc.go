@@ -43,17 +43,17 @@ func (w *WeCrossRPCService) InitService() *errors.Error {
 	if len(connection.UrlPrefix) > 0 {
 		w.urlPrefix = connection.UrlPrefix
 	}
-	if w.httpClient, err = w.getHttpAsyncClient(connection); err != nil {
+	if w.httpClient, err = w.getHttpClient(connection); err != nil {
 		return err
 	}
 	return nil
 }
 
-func (w *WeCrossRPCService) Send(request *methods.Request, responseType methods.Response) (methods.Response, error) {
+func (w *WeCrossRPCService) Send(httpMethod string, uri string, request *methods.Request, responseType methods.Response) (methods.Response, error) {
 	return nil, nil
 }
 
-func (w *WeCrossRPCService) AsyncSend(httpMethod, uri string, request *methods.Request, responseType methods.Response, callback *methods.Callback) {
+func (w *WeCrossRPCService) AsyncSend(httpMethod, uri string, request *methods.Request, response methods.Response, callback *methods.Callback) {
 	defer util.RecoverError(callback)
 	url := ""
 	if len(w.urlPrefix) > 0 {
@@ -71,16 +71,56 @@ func (w *WeCrossRPCService) AsyncSend(httpMethod, uri string, request *methods.R
 		logger.Error("AsyncSend Marshal", url, request, err)
 		panic(err)
 	}
-	wantReq, err := http.NewRequest(httpMethod, url, bytes.NewBuffer(jsonBody))
+	httpRequest, err := http.NewRequest(httpMethod, url, bytes.NewBuffer(jsonBody))
 	if err != nil {
 		logger.Error("AsyncSend NewRequest", url, jsonBody, err)
 		panic(err)
 	}
-	wantReq.Header.Set("Accept", "application/json")
-	wantReq.Header.Set("Content-Type", "application/json")
+	httpRequest.Header.Set("Accept", "application/json")
+	httpRequest.Header.Set("Content-Type", "application/json")
 
 	go func() {
+		httpResponse, errDo := w.httpClient.Do(httpRequest)
+		if errDo != nil {
+			panic(&errors.Error{Code: errors.InternalError, Detail: "handle response failed: " + errDo.Error()})
+		}
 
+		if httpResponse.StatusCode == 401 {
+			callback.CallOnFailed(
+				&errors.Error{
+					Code: errors.LackAuthentication,
+					Detail: "HTTP status code: 401-Unauthorized, have you logged in?\n" +
+						"If you have logged-in already, maybe you should re-login " +
+						"because your account login status has expired.",
+				})
+			return
+		}
+		if httpResponse.StatusCode == 404 {
+			callback.CallOnFailed(
+				&errors.Error{
+					Code: errors.LackAuthentication,
+					Detail: "HTTP status code: 404 Not Found\n" +
+						"Maybe your request's resource path is wrong.",
+				})
+			return
+		}
+		if httpResponse.StatusCode != 200 {
+			callback.CallOnFailed(&errors.Error{
+				Code:   errors.RpcError,
+				Detail: fmt.Sprintf("HTTP response status: %d message: %s", httpResponse.StatusCode, httpResponse.Status),
+			})
+			return
+		} else {
+			buf := &bytes.Buffer{}
+			buf.ReadFrom(httpResponse.Body)
+
+			errJson := json.Unmarshal(buf.Bytes(), response)
+			if errJson != nil {
+				panic(&errors.Error{Code: errors.InternalError, Detail: "HTTP response status is 200, but unmarshal error."})
+			}
+
+			callback.CallOnSuccess(response)
+		}
 	}()
 }
 
@@ -119,7 +159,7 @@ func (w *WeCrossRPCService) getServer(tree *toml.Tree) (string, *errors.Error) {
 	return server, nil
 }
 
-func (w *WeCrossRPCService) getHttpAsyncClient(connection *Connection) (*http.Client, *errors.Error) {
+func (w *WeCrossRPCService) getHttpClient(connection *Connection) (*http.Client, *errors.Error) {
 	transport := &http.Transport{
 		TLSHandshakeTimeout:   httpClientTimeout,
 		DisableKeepAlives:     false,

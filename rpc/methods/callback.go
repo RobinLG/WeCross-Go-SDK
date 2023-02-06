@@ -39,6 +39,13 @@ type Callback struct {
 	OnSuccess func(Response)
 }
 
+func (c *Callback) CallOnSuccess(response Response) {
+	if c.IsFinish.Swap(true) == false {
+		c.Timer.Stop()
+		c.OnSuccess(response)
+	}
+}
+
 func (c *Callback) CallOnFailed(error *errors.Error) {
 	if c.IsFinish.Swap(true) == false {
 		c.Timer.Stop()
