@@ -1,0 +1,7 @@
+[connection]
+  server = '127.0.0.1:8250'
+  sslKey = 'ssl.key'
+  sslCert = 'ssl.crt'
+  caCert = 'ca.crt'
+  # disable ssl:2, SSL without client auth:1 , SSL with client and server auth: 0
+  sslSwitch= 2
