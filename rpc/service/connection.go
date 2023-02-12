@@ -5,6 +5,6 @@ type Connection struct {
 	SslKey    string
 	SslCert   string
 	CaCert    string
-	SslSwitch int
+	SslSwitch int64
 	UrlPrefix string
 }

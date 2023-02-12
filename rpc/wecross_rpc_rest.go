@@ -1,6 +1,7 @@
 package rpc
 
 import (
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/common"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/methods"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/service"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/wecrosslog"
@@ -14,6 +15,6 @@ type WeCrossRPCRest struct {
 
 func (w *WeCrossRPCRest) Test() *service.RemoteCall {
 	return &service.RemoteCall{
-		WeCrossService: w.WecrossService, HttpMethod: "POST", Uri: "/sys/test", Response: methods.UnimplementedResponse{}, Request: &methods.Request{},
+		WeCrossService: w.WecrossService, HttpMethod: "POST", Uri: "/sys/test", Response: &methods.UnimplementedResponse{}, Request: &methods.Request{Version: common.CURRENT_VERSION},
 	}
 }

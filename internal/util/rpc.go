@@ -35,7 +35,7 @@ func RecoverError(callback *methods.Callback) {
 }
 
 func FormatUrlPrefix(urlPrefix string) (string, *errors.Error) {
-	pattern := "^/(?!_)(?!-)(?!.*?_$)(?!.*?-$)[\\w-]{1,18}$"
+	pattern := "^/([^-_])[\\w-]{1,18}$"
 	prefix := urlPrefix
 	if len(prefix) == 0 {
 		return "", nil

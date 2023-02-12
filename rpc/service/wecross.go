@@ -8,5 +8,5 @@ import (
 type WeCrossService interface {
 	InitService() *errors.Error
 	Send(httpMethod string, uri string, request *methods.Request, responseType methods.Response) (methods.Response, error)
-	AsyncSend(httpMethod string, uri string, request *methods.Request, responseType methods.Response, callback *methods.Callback)
+	AsyncSend(httpMethod string, uri string, request *methods.Request, response methods.Response, callback *methods.Callback)
 }

@@ -10,10 +10,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/config"
-	toml "github.com/pelletier/go-toml"
-
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/config"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/util"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/methods"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/wecrosslog"
@@ -34,7 +32,7 @@ func (w *WeCrossRPCService) InitService() *errors.Error {
 	if err != nil {
 		return err
 	}
-	logger.Infof("connection: %v", connection)
+	fmt.Sprintf("connection: %v", connection)
 	if connection.SslSwitch == config.SSL_OFF {
 		w.server = "http://" + connection.Server
 	} else {
@@ -116,7 +114,7 @@ func (w *WeCrossRPCService) AsyncSend(httpMethod, uri string, request *methods.R
 
 			errJson := json.Unmarshal(buf.Bytes(), response)
 			if errJson != nil {
-				panic(&errors.Error{Code: errors.InternalError, Detail: "HTTP response status is 200, but unmarshal error."})
+				panic(&errors.Error{Code: errors.InternalError, Detail: "HTTP response status is 200, but unmarshal error. Detail: " + errJson.Error()})
 			}
 
 			callback.CallOnSuccess(response)
@@ -141,18 +139,18 @@ func (w *WeCrossRPCService) getConnection(config string) (*Connection, *errors.E
 	if connection.Server, err = w.getServer(file); err != nil {
 		return nil, err
 	}
-	connection.CaCert = fmt.Sprintf("%s", file.Get("connection.caCert"))
-	connection.SslKey = fmt.Sprintf("%s", file.Get("connection.sslKey"))
-	connection.SslCert = fmt.Sprintf("%s", file.Get("connection.sslCert"))
-	connection.SslSwitch = file.Get("connection.sslSwitch").(int)
-	if connection.UrlPrefix, err = util.FormatUrlPrefix(fmt.Sprintf("%s", file.Get("connection.urlPrefix"))); err != nil {
+	connection.CaCert = file.GetString("connection.caCert")
+	connection.SslKey = file.GetString("connection.sslKey")
+	connection.SslCert = file.GetString("connection.sslCert")
+	connection.SslSwitch = file.GetInt64("connection.sslSwitch")
+	if connection.UrlPrefix, err = util.FormatUrlPrefix(file.GetString("connection.urlPrefix")); err != nil {
 		return nil, err
 	}
 	return connection, nil
 }
 
-func (w *WeCrossRPCService) getServer(tree *toml.Tree) (string, *errors.Error) {
-	server := fmt.Sprintf("%s", tree.Get("connection.server"))
+func (w *WeCrossRPCService) getServer(toml *util.WeCrossToml) (string, *errors.Error) {
+	server := toml.GetString("connection.server")
 	if len(server) == 0 {
 		return "", &errors.Error{Code: errors.FieldMissing, Detail: "Something wrong with parsing [connection.server], please check configuration"}
 	}
@@ -161,8 +159,8 @@ func (w *WeCrossRPCService) getServer(tree *toml.Tree) (string, *errors.Error) {
 
 func (w *WeCrossRPCService) getHttpClient(connection *Connection) (*http.Client, *errors.Error) {
 	transport := &http.Transport{
-		TLSHandshakeTimeout:   httpClientTimeout,
 		DisableKeepAlives:     false,
+		TLSHandshakeTimeout:   httpClientTimeout,
 		IdleConnTimeout:       httpClientTimeout,
 		ResponseHeaderTimeout: httpClientTimeout,
 		ExpectContinueTimeout: httpClientTimeout,
