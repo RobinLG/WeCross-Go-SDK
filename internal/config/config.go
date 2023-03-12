@@ -7,4 +7,6 @@ const (
 	SSL_ON_CLIENT_AUTH = 0
 	SSL_ON             = 1
 	SSL_OFF            = 2
+
+	WECROSS_GO_LOG_VERBOSITY_LEVEL = 2
 )

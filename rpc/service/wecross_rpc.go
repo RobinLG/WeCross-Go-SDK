@@ -32,7 +32,7 @@ func (w *WeCrossRPCService) InitService() *errors.Error {
 	if err != nil {
 		return err
 	}
-	fmt.Sprintf("connection: %v", connection)
+	logger.Infof("connection: %v", connection)
 	if connection.SslSwitch == config.SSL_OFF {
 		w.server = "http://" + connection.Server
 	} else {

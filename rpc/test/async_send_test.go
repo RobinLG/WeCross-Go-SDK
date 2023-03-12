@@ -3,16 +3,26 @@ package test
 import (
 	"testing"
 
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/wecrosstest"
+
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/methods"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/service"
 )
 
-func TestAsyncSend(t *testing.T) {
+type s struct {
+	wecrosstest.Tester
+}
+
+func Test(t *testing.T) {
+	wecrosstest.RunSubTests(t, s{})
+}
+
+func (s) TestAsyncSend(t *testing.T) {
 	weCrossRPCService := &service.WeCrossRPCService{}
 	weCrossRPC, err := rpc.WeCrossRPCFactory{}.Build(weCrossRPCService)
-	if err != nil {
+	if err.Code != 0 {
 		t.Fatal(err)
 	}
 	weCrossRPC.Test().AsyncSend(
