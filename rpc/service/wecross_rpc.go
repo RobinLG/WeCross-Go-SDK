@@ -8,31 +8,43 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/errors"
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/authentication"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/config"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/internal/util"
+	internalwecrosslog "github.com/WeBankBlockchain/WeCross-Go-SDK/internal/wecrosslog"
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/methods"
-	"github.com/WeBankBlockchain/WeCross-Go-SDK/wecrosslog"
+	req "github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/methods/request"
+	res "github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/methods/response"
 )
 
-var logger = wecrosslog.Component("wecross_rpc")
-
-const httpClientTimeout = 10 * time.Second
+const (
+	prefix            = "[rpc-service] "
+	httpClientTimeout = 10 * time.Second
+)
 
 type WeCrossRPCService struct {
 	server     string
 	httpClient *http.Client
 	urlPrefix  string
+	logger     *internalwecrosslog.PrefixLogger
 }
 
-func (w *WeCrossRPCService) InitService() *errors.Error {
+type completableFuture struct {
+	response interface{}
+	error    *errors.Error
+}
+
+func (w *WeCrossRPCService) InitService(l internalwecrosslog.DepthLoggerV1) *errors.Error {
+	w.logger = internalwecrosslog.NewPrefixLogger(l, prefix)
 	connection, err := w.getConnection(config.APPLICATION_CONFIG_FILE)
 	if err != nil {
 		return err
 	}
-	logger.Infof("connection: %v", connection)
+	w.logger.Infof("connection: %v", connection)
 	if connection.SslSwitch == config.SSL_OFF {
 		w.server = "http://" + connection.Server
 	} else {
@@ -47,8 +59,61 @@ func (w *WeCrossRPCService) InitService() *errors.Error {
 	return nil
 }
 
-func (w *WeCrossRPCService) Send(httpMethod string, uri string, request *methods.Request, responseType methods.Response) (methods.Response, error) {
-	return nil, nil
+func (w *WeCrossRPCService) Send(httpMethod string, uri string, request *methods.Request, response methods.Response) (methods.Response, error) {
+	w.checkRequest(request)
+	completableFutureCh := make(chan completableFuture)
+
+	callback := methods.CallbackFactory{}.Build()
+	callback.OnSuccess = func(response methods.Response) {
+		completableFutureCh <- completableFuture{response: response, error: nil}
+	}
+	callback.OnFailed = func(err *errors.Error) {
+		completableFutureCh <- completableFuture{response: nil, error: err}
+	}
+	w.AsyncSend(httpMethod, uri, request, response, callback)
+
+	var cf completableFuture
+	select {
+	case <-time.After(20 * time.Second):
+		break
+	case cf = <-completableFutureCh:
+		break
+	}
+
+	w.logger.Debugf("response: %v", response)
+
+	if cf.error != nil {
+		return methods.Response{}, cf.error
+	}
+
+	if uaRes, ok := cf.response.(res.UAResponse); ok {
+		if uaReq, ok1 := request.GetData().(req.UARequest); ok1 {
+			w.GetUAResponseInfo(uri, uaReq, uaRes)
+		} else if uaReq, ok1 = request.GetExt().(req.UARequest); ok1 {
+			w.GetUAResponseInfo(uri, uaReq, uaRes)
+		}
+	}
+
+	return methods.Response{}, nil
+}
+
+func (w *WeCrossRPCService) GetUAResponseInfo(uri string, uaRequest req.UARequest, response res.UAResponse) errors.Error {
+	query := strings.Split(uri, "/")[2]
+	if query == "login" {
+		credential := response.GetUAReceipt().GetCredential()
+
+		w.logger.Infof("CurrentUse: %s", uaRequest.GetUsername())
+		if credential == "" {
+			w.logger.Errorf("Login fail, credential in UAResponse is null")
+			return errors.Error{Code: errors.RpcError, Detail: "Login fail, credential in UAResponse is null!"}
+		}
+		authentication.SetCurrentUser(uaRequest.GetUsername(), credential)
+	}
+	if query == "logout" {
+		w.logger.Infof("CurrentUser: %s logout.", authentication.GetCurrentUser())
+		authentication.ClearCurrentUser()
+	}
+	return errors.Error{}
 }
 
 func (w *WeCrossRPCService) AsyncSend(httpMethod, uri string, request *methods.Request, response methods.Response, callback *methods.Callback) {
@@ -66,12 +131,12 @@ func (w *WeCrossRPCService) AsyncSend(httpMethod, uri string, request *methods.R
 	}
 	jsonBody, err := json.Marshal(request)
 	if err != nil {
-		logger.Error("AsyncSend Marshal", url, request, err)
+		w.logger.Errorf("AsyncSend Marshal: %s, %v, %s", url, request, err.Error())
 		panic(err)
 	}
 	httpRequest, err := http.NewRequest(httpMethod, url, bytes.NewBuffer(jsonBody))
 	if err != nil {
-		logger.Error("AsyncSend NewRequest", url, jsonBody, err)
+		w.logger.Errorf("AsyncSend NewRequest: %s, %v, %s", url, jsonBody, err)
 		panic(err)
 	}
 	httpRequest.Header.Set("Accept", "application/json")
@@ -112,6 +177,7 @@ func (w *WeCrossRPCService) AsyncSend(httpMethod, uri string, request *methods.R
 			buf := &bytes.Buffer{}
 			buf.ReadFrom(httpResponse.Body)
 
+			// TODO *response according type
 			errJson := json.Unmarshal(buf.Bytes(), response)
 			if errJson != nil {
 				panic(&errors.Error{Code: errors.InternalError, Detail: "HTTP response status is 200, but unmarshal error. Detail: " + errJson.Error()})
@@ -123,7 +189,7 @@ func (w *WeCrossRPCService) AsyncSend(httpMethod, uri string, request *methods.R
 }
 
 func (w *WeCrossRPCService) checkRequest(request *methods.Request) *errors.Error {
-	if request.Version == "" {
+	if request.GetVersion() == "" {
 		return &errors.Error{Code: errors.RpcError, Detail: "Request version is empty"}
 	} else {
 		return &errors.Error{Code: errors.Success}
@@ -168,14 +234,14 @@ func (w *WeCrossRPCService) getHttpClient(connection *Connection) (*http.Client,
 	if connection.SslSwitch != config.SSL_OFF {
 		caCert, err := ioutil.ReadFile(connection.CaCert)
 		if err != nil {
-			logger.Error("Init http client error: ", err)
+			w.logger.Errorf("Init http client error: %s", err.Error())
 			return nil, &errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("Init http client error: %s", err.Error())}
 		}
 		caCertPool := x509.NewCertPool()
 		caCertPool.AppendCertsFromPEM(caCert)
 		cert, err := tls.LoadX509KeyPair(connection.SslCert, connection.SslKey)
 		if err != nil {
-			logger.Error("Init http client error: ", err)
+			w.logger.Errorf("Init http client error: %s", err.Error())
 			return nil, &errors.Error{Code: errors.InternalError, Detail: fmt.Sprintf("Init http client error: %s", err.Error())}
 		}
 		transport.TLSClientConfig = &tls.Config{

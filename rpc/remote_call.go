@@ -1,11 +1,12 @@
-package service
+package rpc
 
 import (
 	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/methods"
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/service"
 )
 
 type RemoteCall struct {
-	WeCrossService WeCrossService
+	WeCrossService service.WeCrossService
 	HttpMethod     string
 	Uri            string
 	Response       methods.Response

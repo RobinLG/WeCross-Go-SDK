@@ -8,6 +8,6 @@ import (
 type WeCrossRPCFactory struct{}
 
 func (w WeCrossRPCFactory) Build(weCrossService service.WeCrossService) (WeCrossRPC, *errors.Error) {
-	err := weCrossService.InitService()
+	err := weCrossService.InitService(logger)
 	return &WeCrossRPCRest{weCrossService}, err
 }

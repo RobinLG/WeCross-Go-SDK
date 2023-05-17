@@ -1,9 +1,11 @@
 package rpc
 
 import (
-	"github.com/WeBankBlockchain/WeCross-Go-SDK/rpc/service"
+	"github.com/WeBankBlockchain/WeCross-Go-SDK/wecrosslog"
 )
 
+var logger = wecrosslog.Component("rpc")
+
 type WeCrossRPC interface {
-	Test() *service.RemoteCall
+	Test() *RemoteCall
 }
